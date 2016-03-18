@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from django.template import Library, Context
 from django.template.loader import get_template
 from django.utils.translation import ugettext_lazy as _
@@ -76,39 +77,34 @@ def get_closing_rule_for_now(location, attr=None):
     return obj
 
 
+def dayname_transform(dayname):
+    return dayname[:2].title()
+
+
 @register.simple_tag
-def opening_hours(location=None, concise=False):
+def opening_hours(location, concise=True):
     """
     Creates a rendered listing of hours.
     """
     template_name = 'openinghours/opening_hours_list.html'
     days = []  # [{'hours': '9:00am to 5:00pm', 'name': u'Monday'}, {'hours...
 
-    # Without `location`, choose the first company.
-    if location:
-        ohrs = OpeningHours.objects.filter(company=location)
-    else:
-        try:
-            Location = utils.get_premises_model()
-            ohrs = Location.objects.first().openinghours_set.all()
-        except AttributeError:
-            raise Exception("You must define some opening hours"
-                            " to use the opening hours tags.")
+    ohrs = OpeningHours.objects.filter(company=location)
+    if not ohrs.exists():
+        return ''
 
     ohrs.order_by('weekday', 'from_hour')
 
     for o in ohrs:
         days.append({
             'day_number': o.weekday,
-            'name': o.get_weekday_display(),
+            'name': dayname_transform(o.get_weekday_display()),
             'from_hour': o.from_hour,
             'to_hour': o.to_hour,
-            'hours': '%s%s to %s%s' % (
-                o.from_hour.strftime('%I:%M').lstrip('0'),
-                o.from_hour.strftime('%p').lower(),
-                o.to_hour.strftime('%I:%M').lstrip('0'),
-                o.to_hour.strftime('%p').lower()
-            )
+            'hours': ['%s-%s' % (
+                o.from_hour.strftime('%H:%M').lstrip('0'),
+                o.to_hour.strftime('%H:%M').lstrip('0'),
+            )]
         })
 
     open_days = [o.weekday for o in ohrs]
@@ -116,10 +112,18 @@ def opening_hours(location=None, concise=False):
         if day_number not in open_days:
             days.append({
                 'day_number': day_number,
-                'name': day_name,
-                'hours': 'Closed'
+                'name': dayname_transform(day_name),
+                'hours': [_('Zavřeno')]
             })
     days = sorted(days, key=lambda k: k['day_number'])
+
+    groupped_days = {}
+    for day in days:
+        if day['day_number'] in groupped_days:
+            groupped_days[day['day_number']]['hours'].extend(day['hours'])
+        else:
+            groupped_days[day['day_number']] = day
+    days = [groupped_days[day_number] for day_number in sorted(groupped_days.keys())]
 
     if concise:
         # [{'hours': '9:00am to 5:00pm', 'day_names': u'Monday to Friday'},
@@ -140,12 +144,9 @@ def opening_hours(location=None, concise=False):
         concise_days.append(current_set)
 
         for day_set in concise_days:
-            if len(day_set['day_names']) > 2:
-                day_set['day_names'] = '%s to %s' % (day_set['day_names'][0],
-                                                     day_set['day_names'][-1])
-            elif len(day_set['day_names']) > 1:
-                day_set['day_names'] = '%s and %s' % (day_set['day_names'][0],
-                                                      day_set['day_names'][-1])
+            if len(day_set['day_names']) > 1:
+                day_set['day_names'] = '%s-%s' % (day_set['day_names'][0],
+                                                  day_set['day_names'][-1])
             else:
                 day_set['day_names'] = '%s' % day_set['day_names'][0]
 
