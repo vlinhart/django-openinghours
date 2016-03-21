@@ -103,8 +103,8 @@ def opening_hours(location, concise=True):
             'from_hour': o.from_hour,
             'to_hour': o.to_hour,
             'hours': ['%s-%s' % (
-                o.from_hour.strftime('%H:%M').lstrip('0'),
-                o.to_hour.strftime('%H:%M').lstrip('0'),
+                o.from_hour.strftime('%H:%M'),
+                o.to_hour.strftime('%H:%M'),
             )]
         })
 
