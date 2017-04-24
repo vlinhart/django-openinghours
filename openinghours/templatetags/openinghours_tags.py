@@ -156,4 +156,4 @@ def opening_hours(location, concise=True):
         days = concise_days
 
     template = get_template(template_name)
-    return template.render(Context({'days': days}))
+    return template.render({'days': days})
